@@ -39,20 +39,7 @@ import brandLogo7 from "./assets/brands/logo7.webp";
 import brandLogo8 from "./assets/brands/logo8.webp";
 import brandLogo9 from "./assets/brands/logo9.webp";
 
-/**
- * Print247 – "Custom Packaging" hero + quote form section
- * ---------------------------------------------------------
- * Recreated from Figma design using the real exported assets.
- *
- * Requirements:
- *  - Tailwind CSS configured in the host project
- *  - The `assets` folder (from Assets.zip) copied into `src/assets`
- *    right next to this file.
- *
- * Usage:
- *  import PackagingHero from "./PackagingHero";
- *  <PackagingHero />
- */
+
 
 const brandLogos = [
   brandLogo1,
@@ -74,7 +61,7 @@ export default function PackagingHero() {
   const nextSlide = () => setSlide((s) => (s === slides.length - 1 ? 0 : s + 1));
 
   return (
-    <section className="w-full border-t-4 border-b-4 border-[#e8492c] bg-[#f4f2ef]">
+    <section id="hero-section" className="w-full bg-[#f4f2ef]">
       <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8 lg:px-10">
         {/* ---------- Header ---------- */}
         <header className="mb-10 flex items-center justify-between sm:mb-14">
@@ -85,7 +72,7 @@ export default function PackagingHero() {
               aria-label="Call us"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-[#171717] text-white transition hover:opacity-90"
             >
-              <img src={callIcon} alt="" className="h-4 w-4 invert" />
+              <img src={callIcon} alt="" className="h-4 w-4" />
             </button>
             <a
               href="tel:+18328073429"
@@ -178,6 +165,36 @@ export default function PackagingHero() {
   );
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Accepts digits with optional +, spaces, dashes, parentheses — needs at least 7 digits total.
+const PHONE_PATTERN = /^[\d+()\s-]{7,}$/;
+
+function validateForm(form) {
+  const errors = {};
+
+  if (!form.product.trim()) {
+    errors.product = "Product name is required";
+  }
+
+  if (!form.company.trim()) {
+    errors.company = "Company name is required";
+  }
+
+  if (!form.email.trim()) {
+    errors.email = "Email is required";
+  } else if (!EMAIL_PATTERN.test(form.email.trim())) {
+    errors.email = "Enter a valid email address";
+  }
+
+  if (!form.phone.trim()) {
+    errors.phone = "Phone number is required";
+  } else if (!PHONE_PATTERN.test(form.phone.trim())) {
+    errors.phone = "Enter a valid phone number";
+  }
+
+  return errors;
+}
+
 function QuoteForm() {
   const [form, setForm] = useState({
     product: "",
@@ -186,77 +203,156 @@ function QuoteForm() {
     email: "",
     phone: "",
   });
+  const [errors, setErrors] = useState({});
+  const [submittedData, setSubmittedData] = useState(null);
 
-  const handleChange = (field) => (e) =>
-    setForm((f) => ({ ...f, [field]: e.target.value }));
+  const handleChange = (field) => (e) => {
+    const { value } = e.target;
+    setForm((f) => ({ ...f, [field]: value }));
+    // Clear that field's error as soon as the user starts fixing it.
+    setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    const validationErrors = validateForm(form);
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
     // Wire this up to your quote-request endpoint / CRM.
-    console.log("Quote request submitted:", form);
+    // For now, show the submitted info in a confirmation popup.
+    setSubmittedData(form);
+  };
+
+  const closePopup = () => {
+    setSubmittedData(null);
+    setForm({ product: "", company: "", note: "", email: "", phone: "" });
+    setErrors({});
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="w-full rounded-2xl bg-white p-6 shadow-[0_2px_20px_rgba(0,0,0,0.06)] sm:p-8"
-    >
-      <h2 className="text-xl font-bold text-[#171717] sm:text-2xl">
-        Tell Us What You're Packaging
-      </h2>
-      <p className="mt-1 text-xs text-[#8a8a8a]">
-        Free Design Mockup + Sample Within 24 Hrs.
-      </p>
-
-      <div className="mt-5 space-y-4">
-        <Field
-          label="Product Name"
-          placeholder="Enter Product Name"
-          value={form.product}
-          onChange={handleChange("product")}
-        />
-        <Field
-          label="Company Name"
-          placeholder="Enter Company Name"
-          value={form.company}
-          onChange={handleChange("company")}
-        />
-        <Field
-          label="Any Special Requirement"
-          placeholder="Add Your Note here"
-          value={form.note}
-          onChange={handleChange("note")}
-        />
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field
-            label="Email"
-            type="email"
-            placeholder="example@gmail.com"
-            value={form.email}
-            onChange={handleChange("email")}
-          />
-          <Field
-            label="Phone Number"
-            type="tel"
-            placeholder="+1 xxx-xxx-xxxx"
-            value={form.phone}
-            onChange={handleChange("phone")}
-          />
-        </div>
-      </div>
-
-      <button
-        type="submit"
-        className="mt-6 w-full rounded-lg bg-[#171717] py-3.5 text-sm font-semibold text-white transition hover:opacity-90"
+    <>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="w-full rounded-2xl bg-white p-6 shadow-[0_2px_20px_rgba(0,0,0,0.06)] sm:p-8"
       >
-        Get a Qoute
-      </button>
-    </form>
+        <h2 className="text-xl font-bold text-[#171717] sm:text-2xl">
+          Tell Us What You're Packaging
+        </h2>
+        <p className="mt-1 text-xs text-[#8a8a8a]">
+          Free Design Mockup + Sample Within 24 Hrs.
+        </p>
+
+        <div className="mt-5 space-y-4">
+          <Field
+            label="Product Name"
+            placeholder="Enter Product Name"
+            value={form.product}
+            onChange={handleChange("product")}
+            error={errors.product}
+          />
+          <Field
+            label="Company Name"
+            placeholder="Enter Company Name"
+            value={form.company}
+            onChange={handleChange("company")}
+            error={errors.company}
+          />
+          <Field
+            label="Any Special Requirement"
+            placeholder="Add Your Note here"
+            value={form.note}
+            onChange={handleChange("note")}
+          />
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label="Email"
+              type="email"
+              placeholder="example@gmail.com"
+              value={form.email}
+              onChange={handleChange("email")}
+              error={errors.email}
+            />
+            <Field
+              label="Phone Number"
+              type="tel"
+              placeholder="+1 xxx-xxx-xxxx"
+              value={form.phone}
+              onChange={handleChange("phone")}
+              error={errors.phone}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="mt-6 w-full rounded-lg bg-[#171717] py-3.5 text-sm font-semibold text-white transition hover:opacity-90"
+        >
+          Get a Qoute
+        </button>
+      </form>
+
+      {submittedData && (
+        <QuoteSummaryPopup data={submittedData} onClose={closePopup} />
+      )}
+    </>
   );
 }
 
-function Field({ label, type = "text", placeholder, value, onChange }) {
+function QuoteSummaryPopup({ data, onClose }) {
+  const rows = [
+    { label: "Product Name", value: data.product },
+    { label: "Company Name", value: data.company },
+    { label: "Special Requirement", value: data.note || "—" },
+    { label: "Email", value: data.email },
+    { label: "Phone Number", value: data.phone },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl sm:p-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold text-[#171717] sm:text-xl">
+          Quote Request Received
+        </h3>
+        <p className="mt-1 text-xs text-[#8a8a8a]">
+          Here's what you submitted. Our team will reach out shortly.
+        </p>
+
+        <dl className="mt-5 space-y-3">
+          {rows.map((row) => (
+            <div key={row.label} className="flex flex-col gap-0.5 border-b border-[#171717]/10 pb-2">
+              <dt className="text-xs font-medium uppercase tracking-wide text-[#8a8a8a]">
+                {row.label}
+              </dt>
+              <dd className="text-sm text-[#171717]">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <button
+          onClick={onClose}
+          className="mt-6 w-full rounded-lg bg-[#171717] py-3 text-sm font-semibold text-white transition hover:opacity-90"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, type = "text", placeholder, value, onChange, error }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-[#171717]">
@@ -267,8 +363,13 @@ function Field({ label, type = "text", placeholder, value, onChange }) {
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className="w-full rounded-lg border border-[#171717]/15 px-4 py-2.5 text-sm text-[#171717] outline-none transition placeholder:text-[#a3a3a3] focus:border-[#171717]/40 focus:ring-2 focus:ring-[#171717]/10"
+        className={`w-full rounded-lg border px-4 py-2.5 text-sm text-[#171717] outline-none transition placeholder:text-[#a3a3a3] focus:ring-2 ${
+          error
+            ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+            : "border-[#171717]/15 focus:border-[#171717]/40 focus:ring-[#171717]/10"
+        }`}
       />
+      {error && <span className="mt-1 block text-xs text-red-500">{error}</span>}
     </label>
   );
 }
