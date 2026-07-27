@@ -1,5 +1,7 @@
 import { useState } from "react";
 import emailjs from "@emailjs/browser";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "./firebase";
 
 // ---- Real assets from Figma export (place the /assets folder next to this file, inside src/) ----
 import logo from "./assets/logo_b.png";
@@ -39,8 +41,6 @@ import brandLogo5 from "./assets/brands/logo5.webp";
 import brandLogo7 from "./assets/brands/logo7.webp";
 import brandLogo8 from "./assets/brands/logo8.webp";
 import brandLogo9 from "./assets/brands/logo9.webp";
-
-
 
 const brandLogos = [
   brandLogo1,
@@ -170,6 +170,15 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Accepts digits with optional +, spaces, dashes, parentheses — needs at least 7 digits total.
 const PHONE_PATTERN = /^[\d+()\s-]{7,}$/;
 
+// Artwork upload constraints — adjust freely.
+const MAX_FILE_SIZE_MB = 10;
+const ALLOWED_FILE_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/pdf",
+];
+
 function validateForm(form) {
   const errors = {};
 
@@ -196,6 +205,20 @@ function validateForm(form) {
   return errors;
 }
 
+function validateFile(file) {
+  if (!file) return null; // artwork is optional — no file is fine
+
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    return "Only PNG, JPG, WEBP, or PDF files are allowed";
+  }
+
+  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    return `File must be smaller than ${MAX_FILE_SIZE_MB}MB`;
+  }
+
+  return null;
+}
+
 function QuoteForm() {
   const [form, setForm] = useState({
     product: "",
@@ -204,6 +227,7 @@ function QuoteForm() {
     email: "",
     phone: "",
   });
+  const [artworkFile, setArtworkFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [submittedData, setSubmittedData] = useState(null);
   const [isSending, setIsSending] = useState(false);
@@ -212,14 +236,31 @@ function QuoteForm() {
   const handleChange = (field) => (e) => {
     const { value } = e.target;
     setForm((f) => ({ ...f, [field]: value }));
-    // Clear that field's error as soon as the user starts fixing it.
     setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    const fileError = validateFile(file);
+
+    if (fileError) {
+      setErrors((prev) => ({ ...prev, artwork: fileError }));
+      setArtworkFile(null);
+      e.target.value = "";
+      return;
+    }
+
+    setErrors((prev) => ({ ...prev, artwork: undefined }));
+    setArtworkFile(file);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const validationErrors = validateForm(form);
+    const fileError = validateFile(artworkFile);
+    if (fileError) validationErrors.artwork = fileError;
+
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
@@ -230,8 +271,22 @@ function QuoteForm() {
     setIsSending(true);
 
     try {
-      // These keys (product, company, note, email, phone) must match the
-      // {{variable}} names used inside your EmailJS template exactly.
+      // 1) If an artwork file was selected, upload it to Firebase Storage
+      //    first and get back a public download URL.
+      let artworkUrl = "";
+      if (artworkFile) {
+        const safeName = artworkFile.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        const filePath = `artwork/${Date.now()}_${safeName}`;
+        const storageRef = ref(storage, filePath);
+
+        await uploadBytes(storageRef, artworkFile);
+        artworkUrl = await getDownloadURL(storageRef);
+      }
+
+      // 2) Send the email via EmailJS, including the artwork URL (or a
+      //    placeholder if no file was uploaded) as a template variable.
+      //    Make sure your "Contact Us" template has a matching
+      //    {{artwork_url}} variable in its content.
       await emailjs.send(
         import.meta.env.VITE_EMAILJS_SERVICE_ID,
         import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
@@ -241,13 +296,14 @@ function QuoteForm() {
           note: form.note || "—",
           email: form.email,
           phone: form.phone,
+          artwork_url: artworkUrl || "No artwork uploaded",
         },
         { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY }
       );
 
-      setSubmittedData(form);
+      setSubmittedData({ ...form, artworkUrl });
     } catch (err) {
-      console.error("EmailJS send failed:", err);
+      console.error("Submission failed:", err);
       setSendError("Something went wrong sending your request. Please try again.");
     } finally {
       setIsSending(false);
@@ -257,6 +313,7 @@ function QuoteForm() {
   const closePopup = () => {
     setSubmittedData(null);
     setForm({ product: "", company: "", note: "", email: "", phone: "" });
+    setArtworkFile(null);
     setErrors({});
   };
 
@@ -314,6 +371,27 @@ function QuoteForm() {
               error={errors.phone}
             />
           </div>
+
+          {/* ---------- Artwork upload ---------- */}
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-[#171717]">
+              Upload Artwork <span className="font-normal text-[#8a8a8a]">(optional)</span>
+            </span>
+            <input
+              type="file"
+              accept=".png,.jpg,.jpeg,.webp,.pdf"
+              onChange={handleFileChange}
+              className="block w-full text-sm text-[#171717] file:mr-4 file:rounded-lg file:border-0 file:bg-[#171717] file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-white hover:file:opacity-90"
+            />
+            {artworkFile && !errors.artwork && (
+              <span className="mt-1 block text-xs text-[#5a5a5a]">
+                Selected: {artworkFile.name}
+              </span>
+            )}
+            {errors.artwork && (
+              <span className="mt-1 block text-xs text-red-500">{errors.artwork}</span>
+            )}
+          </label>
         </div>
 
         {sendError && (
@@ -325,7 +403,7 @@ function QuoteForm() {
           disabled={isSending}
           className="mt-6 w-full rounded-lg bg-[#171717] py-3.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSending ? "Sending..." : "Get a Qoute"}
+          {isSending ? "Uploading & Sending..." : "Get a Qoute"}
         </button>
       </form>
 
@@ -343,6 +421,7 @@ function QuoteSummaryPopup({ data, onClose }) {
     { label: "Special Requirement", value: data.note || "—" },
     { label: "Email", value: data.email },
     { label: "Phone Number", value: data.phone },
+    { label: "Artwork", value: data.artworkUrl || "No file uploaded" },
   ];
 
   return (
@@ -367,7 +446,20 @@ function QuoteSummaryPopup({ data, onClose }) {
               <dt className="text-xs font-medium uppercase tracking-wide text-[#8a8a8a]">
                 {row.label}
               </dt>
-              <dd className="text-sm text-[#171717]">{row.value}</dd>
+              <dd className="break-all text-sm text-[#171717]">
+                {row.label === "Artwork" && data.artworkUrl ? (
+                  <a
+                    href={data.artworkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline"
+                  >
+                    View uploaded file
+                  </a>
+                ) : (
+                  row.value
+                )}
+              </dd>
             </div>
           ))}
         </dl>
