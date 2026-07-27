@@ -1,4 +1,5 @@
 import { useState } from "react";
+import emailjs from "@emailjs/browser";
 
 // ---- Real assets from Figma export (place the /assets folder next to this file, inside src/) ----
 import logo from "./assets/logo_b.png";
@@ -205,6 +206,8 @@ function QuoteForm() {
   });
   const [errors, setErrors] = useState({});
   const [submittedData, setSubmittedData] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState("");
 
   const handleChange = (field) => (e) => {
     const { value } = e.target;
@@ -213,7 +216,7 @@ function QuoteForm() {
     setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const validationErrors = validateForm(form);
@@ -223,9 +226,32 @@ function QuoteForm() {
       return;
     }
 
-    // Wire this up to your quote-request endpoint / CRM.
-    // For now, show the submitted info in a confirmation popup.
-    setSubmittedData(form);
+    setSendError("");
+    setIsSending(true);
+
+    try {
+      // These keys (product, company, note, email, phone) must match the
+      // {{variable}} names used inside your EmailJS template exactly.
+      await emailjs.send(
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        {
+          product: form.product,
+          company: form.company,
+          note: form.note || "—",
+          email: form.email,
+          phone: form.phone,
+        },
+        { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY }
+      );
+
+      setSubmittedData(form);
+    } catch (err) {
+      console.error("EmailJS send failed:", err);
+      setSendError("Something went wrong sending your request. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const closePopup = () => {
@@ -290,11 +316,16 @@ function QuoteForm() {
           </div>
         </div>
 
+        {sendError && (
+          <p className="mt-3 text-xs text-red-500">{sendError}</p>
+        )}
+
         <button
           type="submit"
-          className="mt-6 w-full rounded-lg bg-[#171717] py-3.5 text-sm font-semibold text-white transition hover:opacity-90"
+          disabled={isSending}
+          className="mt-6 w-full rounded-lg bg-[#171717] py-3.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Get a Qoute
+          {isSending ? "Sending..." : "Get a Qoute"}
         </button>
       </form>
 
